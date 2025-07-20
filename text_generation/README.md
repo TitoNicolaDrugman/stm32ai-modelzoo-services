@@ -1,50 +1,176 @@
-# Image classification STM32 model zoo
+# Text Generation STM32 Model Zoo
 
+This folder provides a **reference implementation and tooling to train, quantize, evaluate, benchmark and deploy compact text generation (language modeling) networks on STM32 devices** (MCU / MPU) using the STM32Cube.AI toolchain.
 
-## Directory components:
-* [datasets](datasets/README.md) placeholder for the image classification datasets.
-* deployment ([STM32H7](deployment/README_STM32H7.md), [STM32N6](deployment/README_STM32N6.md)) contains the necessary files for the deployment service.
-* [pretrained_models](pretrained_models/README.md) points on a collection of optimized pretrained models on different image classification datasets.
-* [src](src/README.md) contains tools to train, evaluate, benchmark and quantize your model on your STM32 target.
+> Focus: lightweight Transformer‐style (e.g. *tiny BERT generator*) word level language models suitable for on‑device next‑token generation.
 
-## Quick & easy examples:
-The `operation_mode` top-level attribute specifies the operations or the service you want to execute. This may be single operation or a set of chained operations.
+---
 
-You can refer to readme links below that provide typical examples of operation modes, and tutorials on specific services:
+## Directory components
 
-- [training, chain_tqe (train + quantize + evaluate), chain_tqeb](./src/training/README.md)
-- [quantization, chain_eqe, chain_qb](./src/quantization/README.md)
-- [evaluation, chain_eqeb](./src/evaluation/README.md)
-- [benchmarking](./src/benchmarking/README.md)
-- [prediction](./src/prediction/README.md)
-- deployment, chain_qd ([STM32H7](./deployment/README_STM32H7.md), [STM32N6](./deployment/README_STM32N6.md))
+* **`datasets/`** – Placeholder + utilities (`combine_corpus.py`) for assembling training / validation corpora. Contains example public domain texts (Shakespeare, Moby Dick, etc.) and a `README.md` / `Source.md` describing provenance.
+* **`src/`** – Core Python packages implementing training, evaluation, prediction (generation), quantization, preprocessing, benchmarking, utilities, models, and configuration examples.
 
-All .yaml configuration examples are located in [config_file_examples](./src/config_file_examples/) folder.
+  * `models/` – Model definitions (e.g. `tiny_bert_generator.py`).
+  * `preprocessing/` – Data loading / tokenization & corpus preparation helpers.
+  * `training/` – Training loop, callbacks, learning rate scheduling, augmentation (if any), and documentation.
+  * `evaluation/` – Accuracy / perplexity / quality evaluation utilities.
+  * `prediction/` – Text generation (greedy / sampling) scripts.
+  * `quantization/` – Post‑training quantization & representative dataset handling.
+  * `benchmarking/` – Host‑side scripts to benchmark runtime, memory, throughput on STM32 targets.
+  * `config_file_examples/` – Minimal YAML examples for each operation mode.
+  * `experiments_outputs/` – Auto‑generated run artifacts (Hydra configs, logs, TensorBoard, quantized & float models). **Not intended for manual editing.**
+  * `utils/` – Auxiliary functions (model management, config parsing, header generation, etc.).
+* **`deployment/`** – Scripts + generated C sources (`c_project/Middlewares/ST/AI/*`) to package a quantized model for STM32 boards (MCU or MPU variants). Includes board‑specific READMEs (`README_STM32H7.md`, `README_STM32N6.md`, `README_MPU.md`).
+* **`conversion_scripts/`** – Helper(s) to convert exported `.tflite` or `.h5` artifacts into C arrays / headers.
+* **`c_headers/`** – Generated headers (e.g. `model.h`, `tokenizer.h`, `embedding.h`) for embedding inside firmware projects.
+* **`pretrained_models/`** – Collection (or pointers) to example pre‑quantized / quantized language models (e.g. MobileNet reference left here as template — replace with text models).
+* **`mlruns/`** – MLflow tracking directory (local) storing experiment metadata, parameters, metrics, artifacts. Each run subfolder contains logs, TensorBoard events, quantized & float checkpoints.
+* **`st_ai_ws/`** – (Optional) Workspace integration placeholder for STM32 AI ecosystem tools.
+* **Top‑level scripts** – `stm32ai_main.py` (entrypoint orchestrating chains), `check_tflite*.py` sanity checks, evaluation helpers, `user_config.yaml` exemplar configuration.
 
-The different values of the `operation_mode` attribute and the corresponding operations are described in the table below. In the names of the chain modes, 't' stands for training, 'e' for evaluation, 'q' for quantization, 'b' for benchmark and 'd' for deployment on an STM32 board.
+---
 
-| operation_mode attribute | Operations |
-|:-------------------------|:-----------|
-| `training`               | Train a model from the variety of classification models in the model zoo **(BYOD)** or your own model **(BYOM)** |
-| `evaluation`             | Evaluate the accuracy of a float or quantized model on a test or validation dataset|
-| `quantization`           | Quantize a float model |
-| `prediction`             | Predict the classes some images belong to using a float or quantized model |
-| `benchmarking`           | Benchmark a float or quantized model on an STM32 board |
-| `deployment`             | Deploy a model on an STM32 board |
-| `chain_tqeb`             | Sequentially: training, quantization of trained model, evaluation of quantized model, benchmarking of quantized model |
-| `chain_tqe`              | Sequentially: training, quantization of trained model, evaluation of quantized model |
-| `chain_eqe`              | Sequentially: evaluation of a float model,  quantization, evaluation of the quantized model |
-| `chain_qb`               | Sequentially: quantization of a float model, benchmarking of quantized model |
-| `chain_eqeb`             | Sequentially: evaluation of a float model,  quantization, evaluation of quantized model, benchmarking of quantized model |
-| `chain_qd`               | Sequentially: quantization of a float model, deployment of quantized model |
+## Core Concepts
 
-There is no model_type on the image classification use case, but [here](https://github.com/STMicroelectronics/stm32ai-modelzoo/blob/master/image_classification/README.md) can be found the list of the available models.
+The workflow is orchestrated by `stm32ai_main.py` using an `operation_mode` value from the YAML configuration. Modes encapsulate single services (training, quantization, evaluation, prediction, benchmarking, deployment) or *chains* that sequence them.
 
-## You don't know where to start? You feel lost?
-Don't forget to follow our tuto below for a quick ramp up : 
-* [How can I define and train my own model?](../image_classification/deployment/doc/tuto/how_to_define_and_train_my_own_model.md)
-* [How can I fine tune a pretrained model on my own dataset?](../image_classification/deployment/doc/tuto/how_to_finetune_a_model_zoo_model_on_my_own_dataset.md)
-* [How can I check the accuracy after quantization of my model?](../image_classification/deployment/doc/tuto/how_to_compare_the_accuracy_after_quantization_of_my_model.md)
-* [How can I evaluate my model on STM32N6 target?](../image_classification/deployment/doc/tuto/how_to_evaluate_my_model_on_stm32n6_target.md)
+**Typical metrics:** loss (cross‑entropy), accuracy (if framed as next‑token classification), validation loss, and derived perplexity (can be computed as `exp(loss)`).
 
-Remember that minimalistic yaml files are available [here](./src/config_file_examples/) to play with specific services, and that all pre-trained models in the [STM32 model zoo](https://github.com/STMicroelectronics/stm32ai-modelzoo/) are provided with their configuration .yaml file used to generate them. These are very good starting points to start playing with!
+---
+
+## Operation Modes
+
+In chain names: **t** = training, **q** = quantization, **e** = evaluation, **b** = benchmarking, **d** = deployment.
+
+| `operation_mode` | Operations (in order)                                                                    | Notes                                                   |
+| :--------------- | :--------------------------------------------------------------------------------------- | :------------------------------------------------------ |
+| `training`       | Train a text generation model (BYOD – bring your own dataset / BYOM – your architecture) | Produces float model + checkpoints                      |
+| `evaluation`     | Evaluate a float or quantized model                                                      | Computes metrics (loss / accuracy / perplexity)         |
+| `quantization`   | Quantize a float model                                                                   | Creates `.tflite` + representative data usage           |
+| `prediction`     | Generate text using a float or quantized model                                           | Supports greedy / temperature sampling (if implemented) |
+| `benchmarking`   | Benchmark model on STM32 board                                                           | Measures latency / memory                               |
+| `deployment`     | Package & deploy model on STM32 board                                                    | Generates C project in `deployment/c_project`           |
+| `chain_tqe`      | training → quantization → evaluation                                                     | Fast end‑to‑end quality check                           |
+| `chain_tqeb`     | training → quantization → evaluation → benchmarking                                      | Adds on‑device performance profile                      |
+| `chain_eqe`      | evaluation (float) → quantization → evaluation (quantized)                               | Compare float vs quantized metrics                      |
+| `chain_eqeb`     | evaluation (float) → quantization → evaluation (quantized) → benchmarking                | Quality + performance delta                             |
+| `chain_qb`       | quantization → benchmarking                                                              | For existing float model                                |
+| `chain_qd`       | quantization → deployment                                                                | Direct field deployment                                 |
+
+---
+
+## Model Types
+
+Initial reference model: **`tiny_bert_generator`** (compact Transformer encoder producing next‑token logits). Additional model variants can be added under `src/models/` – ensure each exposes a factory function and is referenced in configuration.
+
+*Add more lightweight architectures (e.g. distilled transformer, GRU / LSTM baselines) for comparative benchmarking.*
+
+---
+
+## Datasets & Tokenization
+
+Place raw corpus files (plain text, UTF‑8) inside `datasets/`. Use `combine_corpus.py` to merge or preprocess multiple sources into `full_corpus.txt`.
+
+Tokenization strategy (example): simple whitespace / word index (see `tokenizer.json`). You may substitute a character‑level or subword tokenizer; update preprocessing + config accordingly.
+
+**Representative data for quantization**: by default pulled from the training corpus unless a dedicated quantization path is specified.
+
+---
+
+## Configuration Files
+
+All tunable settings reside in YAML (Hydra/OmegaConf). Main sections typically include:
+
+* `general`: run naming, model path, output directory.
+* `dataset`: paths, sequence length, vocabulary specs, batch sizes.
+* `model`: architecture hyperparameters (embedding dim, heads, layers, FFN size, etc.).
+* `training`: epochs, optimizer params, learning rate schedule, early stopping.
+* `quantization`: representative dataset size, calibration parameters.
+* `prediction`: prompt, max tokens, decoding temperature / top‑k (if available).
+* `deployment` & `benchmarking`: board type, clock config, runtime profiling options.
+* `tools.stm32ai`: on‑cloud / local settings, version.
+
+Override any parameter from the CLI (Hydra pattern): `section.param=value`.
+
+---
+
+## Typical Workflows
+
+**1. Train & Evaluate**
+
+```
+operation_mode=training
+```
+
+Inspect metrics (TensorBoard) in `src/experiments_outputs/<run>/logs`.
+
+**2. Quantize & Compare**
+
+```
+operation_mode=chain_eqe model.float_model_path=<path_to_h5>
+```
+
+Check metric deltas (accuracy / loss / perplexity) pre vs post quantization.
+
+**3. Benchmark On Device**
+
+```
+operation_mode=chain_qb deployment.hardware_setup.board=STM32H7
+```
+
+Review latency / memory usage reported by benchmarking scripts.
+
+**4. Deploy**
+
+```
+operation_mode=chain_qd deployment.hardware_setup.board=STM32N6570-DK
+```
+
+Generated C sources land under `deployment/c_project/Middlewares/ST/AI/`.
+
+**5. Generate Text**
+
+```
+operation_mode=prediction prediction.prompt="STM32 embedded AI" prediction.max_tokens=50
+```
+
+Retrieve generated sequence from console / saved logs.
+
+---
+
+## Benchmarking & MLflow
+
+Each run logs parameters + metrics to `mlruns/` (MLflow). TensorBoard events stored in `.../logs/`. Use these to compare architectures or quantization impacts across runs.
+
+---
+
+## Deployment
+
+Deployment scripts integrate with STM32Cube.AI (local or Developer Cloud if `tools.stm32ai.on_cloud=true`). After `chain_qd`, follow board README instructions to flash and (if needed) toggle boot switches (e.g. STM32N6570-DK notice).
+
+Generated headers (`model.h`, `tokenizer.h`, `embedding.h`) are prepared for inclusion in application firmware.
+
+---
+
+## Extending the Zoo
+
+1. Add new model file under `src/models/`.
+2. Expose a build function returning a compiled `tf.keras.Model`.
+3. Register / reference it in configuration (`model.name` or similar parameter).
+4. Provide a minimal config example for training & quantization.
+5. (Optional) Supply a pre‑trained & quantized artifact in `pretrained_models/`.
+
+---
+
+## License
+
+See `LICENSE.md` and any embedded license files inside generated middleware folders.
+
+---
+
+## Getting Help
+
+Check individual READMEs inside subfolders for mode‑specific guidance (training, quantization, evaluation, deployment). For quick orientation, start with a small corpus + reduced model dimensions, then scale once the pipeline works end‑to‑end.
+
+Happy generating on STM32! 🚀
